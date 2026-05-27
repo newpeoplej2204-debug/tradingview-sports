@@ -1,15 +1,19 @@
 
-# TradingView Style Sports AI
+# TradingView Sports Trading Terminal
 
-## 변경 사항
-- 이동평균선 제거
-- TradingView 스타일 UI 적용
-- 스포츠 결과를 캔들차트로 변환
-- 승리 = 빨간색 봉
-- 무승부 = 초록색 봉
-- 패배 = 파란색 봉
-- 득점/실점 기반 가격 움직임 생성
+## Features
+- Split screen independent charts
+- TradingView style candlestick UI
+- Scroll / Zoom / Drag support
+- Home/Away independent candle counts
+- 20 / 50 / 75 / 100 candles
+- Win = Red candle
+- Draw = Green marker
+- Loss = Blue candle
 
-## 실행
+## Run
 pip install -r requirements.txt
 streamlit run app.py
+
+## Deploy
+https://share.streamlit.io

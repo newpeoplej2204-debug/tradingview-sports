@@ -2,14 +2,14 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 st.set_page_config(
-    page_title="TradingView Sports AI",
+    page_title="TradingView Sports Terminal",
     layout="wide"
 )
 
-st.title("📈 TradingView Style Sports AI")
+st.title("📈 TradingView Sports Trading Terminal")
 
 # =====================================================
 # LEAGUES
@@ -40,6 +40,10 @@ teams = {
     "MLB": ["Dodgers","Yankees","Astros","Braves"]
 }
 
+# =====================================================
+# TEAM SELECT
+# =====================================================
+
 home_team = st.sidebar.selectbox(
     "🏠 Home Team",
     teams[league]
@@ -52,46 +56,57 @@ away_team = st.sidebar.selectbox(
 )
 
 # =====================================================
-# GENERATE MATCH DATA
+# INDEPENDENT PERIOD SELECT
 # =====================================================
 
-np.random.seed(len(home_team) + len(away_team))
-
-matches = 40
-
-dates = pd.date_range(
-    end=pd.Timestamp.today(),
-    periods=matches
+home_period = st.sidebar.selectbox(
+    "🏠 Home Candles",
+    [20,50,75,100],
+    index=1
 )
 
-def create_team_data(team_name):
+away_period = st.sidebar.selectbox(
+    "✈️ Away Candles",
+    [20,50,75,100],
+    index=1
+)
+
+# =====================================================
+# DATA ENGINE
+# =====================================================
+
+def generate_team_data(team_name, periods):
+
+    np.random.seed(len(team_name) + periods)
+
+    dates = pd.date_range(
+        end=pd.Timestamp.today(),
+        periods=periods
+    )
 
     rows = []
 
     current = 50
 
-    for i in range(matches):
+    for i in range(periods):
 
         gf = np.random.randint(0, 5)
         ga = np.random.randint(0, 5)
 
         if gf > ga:
             result = "WIN"
-            color = "red"
 
         elif gf == ga:
             result = "DRAW"
-            color = "green"
 
         else:
             result = "LOSS"
-            color = "blue"
 
         open_price = current
 
-        movement = (gf * 2) - ga
+        move = (gf * 2) - ga
 
-        close_price = open_price + movement
+        close_price = open_price + move
 
         high = max(open_price, close_price) + np.random.randint(0, 3)
         low = min(open_price, close_price) - np.random.randint(0, 3)
@@ -101,19 +116,18 @@ def create_team_data(team_name):
         rows.append({
             "Date": dates[i],
             "Open": open_price,
-            "Close": close_price,
             "High": high,
             "Low": low,
+            "Close": close_price,
             "GF": gf,
             "GA": ga,
-            "Result": result,
-            "Color": color
+            "Result": result
         })
 
     return pd.DataFrame(rows)
 
-home_df = create_team_data(home_team)
-away_df = create_team_data(away_team)
+home_df = generate_team_data(home_team, home_period)
+away_df = generate_team_data(away_team, away_period)
 
 # =====================================================
 # AI PREDICTION
@@ -124,127 +138,160 @@ away_strength = away_df["Close"].iloc[-1]
 
 total = abs(home_strength) + abs(away_strength)
 
-home_pct = round(
-    (abs(home_strength) / total) * 100,
-    1
-)
-
-away_pct = round(
-    (abs(away_strength) / total) * 100,
-    1
-)
-
-draw_pct = round(
-    np.random.randint(5, 20),
-    1
-)
+home_pct = round((abs(home_strength) / total) * 100, 1)
+away_pct = round((abs(away_strength) / total) * 100, 1)
+draw_pct = round(np.random.randint(5, 15), 1)
 
 st.subheader("🤖 AI Match Prediction")
 
 c1, c2, c3 = st.columns(3)
 
 c1.metric(
-    f"{home_team} Win %",
+    f"{home_team}",
     f"{home_pct}%"
 )
 
 c2.metric(
-    "Draw %",
+    "Draw",
     f"{draw_pct}%"
 )
 
 c3.metric(
-    f"{away_team} Win %",
+    f"{away_team}",
     f"{away_pct}%"
 )
 
 # =====================================================
-# TRADINGVIEW STYLE CHART
+# CHART FUNCTION
 # =====================================================
 
-st.subheader("📊 Sports Candlestick Momentum")
+def create_chart(df, title):
 
-fig, ax = plt.subplots(
-    figsize=(16, 8)
-)
+    colors = []
 
-def draw_candles(df, offset):
+    for _, row in df.iterrows():
 
+        if row["Result"] == "WIN":
+            colors.append("red")
+
+        elif row["Result"] == "DRAW":
+            colors.append("green")
+
+        else:
+            colors.append("blue")
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Candlestick(
+        x=df["Date"],
+        open=df["Open"],
+        high=df["High"],
+        low=df["Low"],
+        close=df["Close"],
+        increasing_line_color='red',
+        decreasing_line_color='blue'
+    ))
+
+    # draw overlay markers
     for idx, row in df.iterrows():
 
-        x = idx + offset
+        if row["Result"] == "DRAW":
 
-        # wick
-        ax.plot(
-            [x, x],
-            [row["Low"], row["High"]],
-            linewidth=1.5
-        )
-
-        # candle body
-        lower = min(row["Open"], row["Close"])
-        height = abs(row["Close"] - row["Open"])
-
-        ax.add_patch(
-            plt.Rectangle(
-                (x - 0.3, lower),
-                0.6,
-                max(height, 0.5)
+            fig.add_trace(
+                go.Scatter(
+                    x=[row["Date"]],
+                    y=[row["Close"]],
+                    mode="markers",
+                    marker=dict(
+                        size=10,
+                        color="green"
+                    ),
+                    name="Draw"
+                )
             )
-        )
 
-        ax.patches[-1].set_color(row["Color"])
+    fig.update_layout(
+        title=title,
+        template="plotly_dark",
+        xaxis_rangeslider_visible=True,
+        dragmode='pan',
+        height=650
+    )
 
-draw_candles(home_df, 0)
-draw_candles(away_df, matches + 5)
-
-ax.set_title(
-    f"{home_team} vs {away_team} Trading Momentum"
-)
-
-ax.set_xlabel("Matches")
-ax.set_ylabel("Performance Price")
-
-st.pyplot(fig)
+    return fig
 
 # =====================================================
-# MATCH LOG
+# SPLIT SCREEN
+# =====================================================
+
+st.subheader("📊 Split TradingView Charts")
+
+left, right = st.columns(2)
+
+with left:
+
+    st.markdown(f"### 🏠 {home_team}")
+
+    home_chart = create_chart(
+        home_df,
+        f"{home_team} Momentum"
+    )
+
+    st.plotly_chart(
+        home_chart,
+        use_container_width=True
+    )
+
+with right:
+
+    st.markdown(f"### ✈️ {away_team}")
+
+    away_chart = create_chart(
+        away_df,
+        f"{away_team} Momentum"
+    )
+
+    st.plotly_chart(
+        away_chart,
+        use_container_width=True
+    )
+
+# =====================================================
+# DATA TABLES
 # =====================================================
 
 st.subheader("📋 Recent Match Candle Data")
 
-recent = pd.concat([
-    home_df.tail(5).assign(Team=home_team),
-    away_df.tail(5).assign(Team=away_team)
-])
+c1, c2 = st.columns(2)
 
-st.dataframe(
-    recent[
-        [
-            "Team",
-            "GF",
-            "GA",
-            "Result",
-            "Open",
-            "Close",
-            "High",
-            "Low"
-        ]
-    ]
-)
+with c1:
+
+    st.markdown(f"### {home_team}")
+
+    st.dataframe(
+        home_df.tail(10)
+    )
+
+with c2:
+
+    st.markdown(f"### {away_team}")
+
+    st.dataframe(
+        away_df.tail(10)
+    )
 
 # =====================================================
 # SIGNAL ENGINE
 # =====================================================
 
-st.subheader("🚨 Signal Engine")
+st.subheader("🚨 AI Signal Engine")
 
-def signal(close_price):
+def signal(value):
 
-    if close_price > 65:
-        return "🔥 Strong Bull"
+    if value > 70:
+        return "🔥 Bullish"
 
-    elif close_price < 35:
+    elif value < 30:
         return "❄️ Capitulation"
 
     return "📈 Neutral"
@@ -252,15 +299,15 @@ def signal(close_price):
 signal_df = pd.DataFrame([
     {
         "Team": home_team,
-        "Signal": signal(home_df["Close"].iloc[-1])
+        "Signal": signal(home_strength)
     },
     {
         "Team": away_team,
-        "Signal": signal(away_df["Close"].iloc[-1])
+        "Signal": signal(away_strength)
     }
 ])
 
 st.dataframe(signal_df)
 
 st.markdown("---")
-st.markdown("📈 TradingView Style Sports AI Dashboard")
+st.markdown("📈 TradingView Sports Trading Terminal")
